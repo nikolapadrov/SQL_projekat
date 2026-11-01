@@ -59,3 +59,102 @@ where attendance = 0
     and season = '2024/25'
 
 -- nema utakmica bez posete 
+
+
+-- 4. Судије: за сваког судију број утакмица и картони по утакмици.
+
+with mec as (
+select
+    m.match_id,
+    m.referee_id,
+    count(me.event_type) as kartoni
+from matches m
+left join match_events me on m.match_id = me.match_id 
+    and me.event_type in ('yellow_card','second_yellow','red_card')
+where m.status = 'played'
+group by m.match_id, m.referee_id
+)
+select
+    mec.referee_id,
+    count(mec.match_id) as total_games,
+    sum(kartoni) as total_kartoni,
+    round(sum(kartoni) / count(mec.match_id),2) as kartoni_po_utkamici
+from mec
+group by mec.referee_id
+order by kartoni_po_utkamici desc;
+
+
+-- 5. Играчи: пет најбољих стрелаца и пет најбољих асистената.
+
+
+with igraci as(
+select
+    me.player_id,
+    count_if(event_type in ('goal', 'penalty_goal')) as total_goals
+from match_events me
+join matches m on me.match_id = m.match_id
+where event_type in ('goal', 'penalty_goal')
+    and m.status = 'played'
+group by me.player_id
+)
+select
+    p.first_name,
+    p.last_name,
+    i.total_goals    
+from igraci i
+join players p on i.player_id = p.player_id
+order by total_goals desc
+limit 5;
+
+
+with asistenti as(
+select
+    me.related_player_id,
+    count_if(event_type in ('goal')) as total_assists
+from match_events me
+join matches m on me.match_id = m.match_id
+where event_type in ('goal')
+    and m.status = 'played'
+    and me.related_player_id is not null
+group by me.related_player_id
+)
+select
+    p.first_name,
+    p.last_name,
+    a.total_assists    
+from asistenti a
+join players p on a.related_player_id = p.player_id
+order by total_assists desc
+limit 5;
+
+
+-- 6. Квалитет података: бар два проблема на која сте наишли у подацима (на пример утакмица
+-- чији резултат се не слаже са догађајима, догађаји са непостојећим играчем, дан без
+-- тренера), са упитима који их проналазе.
+
+select
+    me.event_id,
+    me.match_id,
+    me.team_id,
+    me.player_id
+from match_events me
+left join players p on me.player_id = p.player_id
+where p.player_id is null;
+
+select * from players where player_id = 99999;
+
+
+select
+    t.team_id,
+    t.team_name,
+    m.match_id,
+    m.season,
+    m.status
+from teams t
+left join matches m on t.team_id = m.home_team_id
+    or m.away_team_id = t.team_id
+where m.match_id is null;
+
+select * from matches where match_id is null;
+
+
